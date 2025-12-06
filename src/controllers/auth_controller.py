@@ -3,7 +3,7 @@ import bcrypt
 from src import db
 from flask import jsonify, request
 from src.models.user_model import User
-from src.utils.jwt import decode_jwt_token, generate_jwt_token
+from src.utils.jwt import generate_jwt_token
 
 
 def register_controller():
@@ -64,10 +64,6 @@ def login_controller():
         }
 
         access_token = generate_jwt_token(user.id)
-        refresh_token = generate_jwt_token(user.id, is_refresh=True)
-
-        user.refresh_token = refresh_token
-        user.refresh_token_created_at = datetime.datetime.utcnow()
         db.session.commit()
 
         return (
@@ -75,7 +71,6 @@ def login_controller():
                 {
                     "message": "Login successful",
                     "access_token": access_token,
-                    "refresh_token": refresh_token,
                     "username": user.username,
                     "role": user.role,
                     "status": 1,
@@ -89,45 +84,18 @@ def login_controller():
         return (jsonify({"success": 0, "error": str(e)}), 500)
 
 
-def token_refresh_controller():
+def get_all_users_controller():
+    users = User.query.all()
+    result = [{"id": u.id, "username": u.username, "role": u.role} for u in users]
+    return jsonify(result), 200
 
-    try:
 
-        refresh_token = request.headers.get("Authorization")
-        if not refresh_token or not refresh_token.startswith("Bearer "):
-            return (
-                jsonify({"message": "Refresh token missing or invalid", "status": 0}),
-                400,
-            )
+def get_user_by_id_controller(id):
+    user = User.query.get(id)
 
-        refresh_token = refresh_token.split(" ")[1]
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-        identity = decode_jwt_token(refresh_token)
-        user = User.query.filter_by(id=identity["user_id"]).first()
+    result = {"id": user.id, "username": user.username, "role": user.role}
 
-        if not user:
-            return jsonify({"message": "User not found", "status": 0}), 404
-
-        if refresh_token != user.refresh_token:
-            return jsonify({"message": "Invalid refresh token", "status": 0}), 401
-
-        new_access_token = generate_jwt_token(user.id)
-        new_refresh_token = generate_jwt_token(user.id, is_refresh=True)
-
-        user.refresh_token = new_refresh_token
-        user.token_created_at = datetime.datetime.utcnow()
-        db.session.commit()
-
-        return (
-            jsonify(
-                {
-                    "message": "Access token refreshed",
-                    "access_token": new_access_token,
-                    "refresh_token": new_refresh_token,
-                    "status": 1,
-                }
-            ),
-            200,
-        )
-    except Exception as e:
-        return (jsonify({"success": 0, "error": str(e)}), 500)
+    return jsonify(result), 200

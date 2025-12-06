@@ -1,3 +1,4 @@
+shortuuid==1.0.13
 alembic==1.13.2
 bcrypt==4.2.0
 blinker==1.8.2
